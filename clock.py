@@ -6,7 +6,7 @@
 # Author: Will Hall
 # Copyright (c) 2021 Lime Parallelogram
 # -----
-# Last Modified: Thu Dec 16 2021
+# Last Modified: Sun Apr 03 2022
 # Modified By: Will Hall
 # -----
 # HISTORY:
@@ -29,23 +29,33 @@ import time
 import threading
 
 # ---------------------------- Program Parameters ---------------------------- #
-CONFIG_DIR = "/mnt/config"
-PRINTER_CONFIG = "/mnt/config/printers/"
+# CONFIG File Settings
+CONFIG_DIR = "./config/"
+PRINTER_CONFIG = CONFIG_DIR + "printers/"
+
+# LED Settings
 NUM_LEDS = 24
 MINS_PER_LED = (12*60)/NUM_LEDS
-LED_PIN = board.D18
-TAKEOVER_PIN = 15
-TWELVE_LED = 20 #The ID of the LED that represents 12 o-clock
-DEFAULT_COLOUR = (0,0,2)
-BLANK = (0, 0, 0)
-LED_DEFAULT = [DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK]
+TWELVE_LED = 12 #The ID of the LED that represents 12 o-clock
 BRIGHTNESS_REDUCTION_FACTOR = 0.3
+DATA_DIRECTION = 1 # -1 = Data travels in ACW direction
+
+# Pin settings
+LED_PIN = board.D18
+TAKEOVER_PIN = 4
+
+# Colour / Image
+DEFAULT_COLOUR = (0,0,2)
+DEFAULT_YELLOW = (2,2,1)
+BLANK = (0, 0, 0)
+LED_DEFAULT = [DEFAULT_YELLOW, BLANK, DEFAULT_YELLOW, BLANK, DEFAULT_YELLOW, BLANK, DEFAULT_YELLOW, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_YELLOW, BLANK, DEFAULT_YELLOW, BLANK, DEFAULT_YELLOW, BLANK]
 
 # ----------------------------- Program Variables ---------------------------- #
-m
 # ---------------------------------- Parsers --------------------------------- #
 class Parsers:
+    # Convert the printer config file to usable dictionary
     def parsePrinterConfig(file):
+        # Read from file
         with open(file,'r') as f:
             lines = f.readlines()
 
@@ -63,25 +73,32 @@ class Parsers:
 # --------------- Class that governs interactions with the API --------------- #
 class OctoAPI:
     def __init__(self,printer):
+        # Set instance attributes from printer dictionary
         self.API_KEY = printer["API_KEY"]
         self.IP = printer["IP"]
         self.PORT = printer["PORT"]
         self.address = Template(f"http://{self.IP}:{self.PORT}/api/$request?apikey={self.API_KEY}")
         self.ID = int(printer["ID"])
         self.colour = printer["COLOUR"]
+        # Convert string colour (###,###,###) to tuple
         self.colour = self.colour.replace("(","")
         self.colour = self.colour.replace(")","")
         self.colour = tuple(map(int,self.colour.split(",")))
         self.colour = [c * BRIGHTNESS_REDUCTION_FACTOR for c in self.colour]
+
         self.remainingTime = 6
         self.displayedTime = -1
 
+    # ----------------- #
+    # Make a HTTP request to the server
     def makeRequest(self,request):
         apiRequest = requests.get(self.address.substitute(request=request))
         data = apiRequest.text
         jsonData = json.loads(data)
         return jsonData
     
+    # ----------------- #
+    # Check if printer is operational
     def isOperational(self):
         response = self.makeRequest("connection")
         if response["current"]["state"] == "Operational":
@@ -89,37 +106,76 @@ class OctoAPI:
 
         return False
 
+    # ----------------- #
+    # Get the remaining time [in mins]
     def getRemainingTime(self):
         job = self.makeRequest("job")
         progress = job["progress"]
         seconds = int(progress["printTimeLeft"]) if progress["printTimeLeft"] != None else 0
+        
         if job["state"] != "Printing":
-            return -1
-        if seconds == 0 and job["state"] == "Printing":
-            self.remainingTime = 11
-            return 11
-        mins = seconds // 60
-        segments = round(mins / 30)
-        if segments > NUM_LEDS - 1:
-            segments = NUM_LEDS -1
-            
-        self.remainingTime = segments
-        return segments
+            self.remainingTime = -1
+
+        elif seconds == 0 and job["state"] == "Printing": # If time estimate not provided, assume > 11.5 hours
+            self.remainingTime = 11.5*60
+
+        else:
+            mins = seconds // 60
+            self.remainingTime = mins
+
+        return self.remainingTime
     
+    # ----------------- #
+    # Get update the displayed time on the return
     def updateDisplayedTime(self):
         self.displayedTime = self.remainingTime
 
+    # ----------------- #
+    # Update the remaining time in this class
+    def updateRemainingTime(self):
+        self.remainingTime = self.getRemainingTime()
+
 # -------------- Class that governes interactions with the LEDS -------------- #
 class LEDRing:
-    def __init__(self,pin,numLEDs):
+    def __init__(self,pin,numLEDs,defaultImage,dataDirection,twelveLED):
         self.NUM_LEDS = numLEDs
         self.PIXELS = neopixel.NeoPixel(pin,numLEDs)
+        self.defaultDisplay = defaultImage
+        self.DATA_DIRECTION = dataDirection
+        self.TWELVE_LED = twelveLED
+
+        self.ledMap = self._generateMap()
     
+    # ----------------- #
+    # Generate map dictionary of clock value to actual LED Number
+    def _generateMap(self):
+        map = {-1:-1}
+        for led in range(0,self.NUM_LEDS):
+            ledLocation = self.TWELVE_LED + led*self.DATA_DIRECTION
+            if ledLocation < 0:
+                ledLocation += self.NUM_LEDS
+
+            map[led] = ledLocation
+        return map
+    
+    # ----------------- #
+    # Convert a time in mins to a number of clock segments
+    def _timeToSegments(self,mins):
+        segments = round(mins / 30)
+        if segments >= NUM_LEDS: # If the segment requested is more than available, show max
+            segments = NUM_LEDS -1
+            
+        return segments
+
+    # ----------------- #
+    # Reset the entire display to default image
     def clear(self):
-        for pixel in range(NUM_LEDS):
-            self.PIXELS[pixel] = LED_DEFAULT[pixel]
+        for pixel in range(self.NUM_LEDS):
+            self.PIXELS[pixel] = self.defaultDisplay[pixel]
             time.sleep(0.03)
     
+    # ----------------- #
+    # Flash entire face quickly red (ERROR)
     def errorDisplay(self):
         for i in range(7):
             self.PIXELS.fill((255,0,0))
@@ -127,42 +183,67 @@ class LEDRing:
             self.PIXELS.fill((0,0,0))
             time.sleep(0.1)
         
+    # ----------------- #
+    # Shade the two LEDs next to a number on the clock
     def shadeNumber(self,number,colour):
-        secondLED = TWELVE_LED-number*2
-        secondLED = secondLED + (NUM_LEDS) if secondLED < 0 else secondLED
-        self.PIXELS[secondLED] = colour
-        self.PIXELS[secondLED-1] = colour
+        self.PIXELS[self.ledMap[number]] = colour
+        self.PIXELS[self.ledMap[number-1]] = colour
     
+    # ----------------- #
+    # Set the colour of an arbitrary pixel
     def setPixel(self,pixel,colour):
         self.PIXELS[pixel] = colour
-    
+
+    # ----------------- #
+    # Show the remaining time on the clock
     def showTime(self,displayedTime,remainingTime,colour):
-        oldLEDNum = getLEDNum(displayedTime)
-        LEDNum = getLEDNum(remainingTime)
+        oldLEDNum = self.ledMap[self._timeToSegments(displayedTime)] # The LED that was previously lit
+        LEDNum = self.ledMap[self._timeToSegments(remainingTime)] # The LED that should now be lit
+        
         if remainingTime != -1:
             originalColour = self.PIXELS[LEDNum]
-            if originalColour != list(colour):
-                if originalColour != (0,0,0):
-                    if displayedTime != -1:
-                        for intensity in range(50,-1,-1):
-                            newColour = tuple([i * (0.01*intensity) for i in originalColour])
-                            self.PIXELS[oldLEDNum] = newColour
-                            time.sleep(0.01)
-                        self.PIXELS[oldLEDNum] = LED_DEFAULT[oldLEDNum]
-                    for intensity in range(0,51):
-                        newColour = tuple([i * (0.01*intensity) for i in colour])
-                        self.PIXELS[LEDNum] = newColour
+            if originalColour != list(colour): # Check if another printer is showing the same time.
+                # Fade out previous colour
+                if displayedTime != -1:
+                    for intensity in range(50,-1,-1):
+                        newColour = tuple([i * (0.01*intensity) for i in originalColour])
+                        self.PIXELS[oldLEDNum] = newColour
                         time.sleep(0.01)
+                    self.PIXELS[oldLEDNum] = self.defaultDisplay[oldLEDNum]
+                    
+                # Fade up new LED
+                for intensity in range(0,51):
+                    newColour = tuple([i * (0.01*intensity) for i in colour])
+                    self.PIXELS[LEDNum] = newColour
+                    time.sleep(0.01)
 
-                    time.sleep(4)
-                    self.PIXELS[LEDNum] = colour
-        else:
-            if displayedTime != -1:
-                printerFinnish(colour)
-                self.PIXELS[oldLEDNum] = LED_DEFAULT[oldLEDNum]        
+                self.PIXELS[LEDNum] = colour
+                
+        else: # If the printer has finished
+            if displayedTime != -1: # Display animation if printer has just finished
+                self.printerFinnish(colour)
+                self.PIXELS[oldLEDNum] = self.defaultDisplay[oldLEDNum]        
+
+    # ----------------- #
+    # Display a finnishing animation 
+    def printerFinnish(self,colour):
+        ring.clear()
+
+        for p in range(self.NUM_LEDS):
+            ring.setPixel(self.ledMap(p),colour)
+            time.sleep(0.1)
+
+        time.sleep(5)
         
+        for p in range(self.NUM_LEDS,-1,-1):
+            ledNum = self.ledMap(p)
+            ring.setPixel(ledNum,self.defaultDisplay[ledNum])
+            time.sleep(0.1)
+        
+        time.sleep(3)
 
 # ----------------------------- Display functions ---------------------------- #
+# Display whether or not each printer is operational
 def showOperationStatus():
     for printer in PRINTERS:
         if printer.isOperational():
@@ -170,38 +251,19 @@ def showOperationStatus():
         else:
             ring.shadeNumber(printer.ID,(255,0,0))
     
+# ----------------- #
+# Display colours of loaded printer configurations
 def showColourTest():
     for printer in PRINTERS:
         ring.shadeNumber(printer.ID,printer.colour)
     
-def printerFinnish(colour):
-    ring.clear()
-
-    for p in range(NUM_LEDS):
-        ring.setPixel(getLEDNum(p),colour)
-        time.sleep(0.1)
-
-    time.sleep(5)
-    
-    for p in range(NUM_LEDS,-1,-1):
-        ledNum = getLEDNum(p)
-        ring.setPixel(ledNum,LED_DEFAULT[ledNum])
-        time.sleep(0.1)
-    
-    time.sleep(3)
-
-# ------------- Function to convert clock segment to pixel number ------------ #
-def getLEDNum(segment):
-    LEDNum = TWELVE_LED - segment
-    LEDNum = LEDNum + 24 if LEDNum < 0 else LEDNum
-    return LEDNum
 
 # ------------------------------- Loads Config ------------------------------- #
 printerFiles = [PRINTER_CONFIG+file for file in os.listdir(PRINTER_CONFIG) if not os.path.isdir(PRINTER_CONFIG+file) and file.endswith(".txt")]
 PRINTERS = [OctoAPI(printer) for printer in [Parsers.parsePrinterConfig(printer) for printer in printerFiles]]
 
 # ------------------------ Setup Instance of LED ring ------------------------ #
-ring = LEDRing(LED_PIN,NUM_LEDS)
+ring = LEDRing(LED_PIN,NUM_LEDS,LED_DEFAULT,DATA_DIRECTION,TWELVE_LED)
 
 # ----------------------- Assumes control from Arduino ----------------------- #
 GPIO.setup(TAKEOVER_PIN,GPIO.OUT)
@@ -211,30 +273,44 @@ ring.clear()
 
 
 # ------------------------------ Main Execution ------------------------------ #
+# Thread to make requests to update time
 def monitorTime():
-    while True:
+    print("Starting Monitoring System...")
+    thisThread = threading.currentThread()
+
+    while getattr(thisThread,"monitor",True):
         try:
             for printer in PRINTERS:
-                printer.remainingTime = printer.getRemainingTime()
-            time.sleep(30)
+                printer.updateRemainingTime()
+            time.sleep(30) # Wait 30s before next query
+
         except Exception as e:
             ring.errorDisplay()
             time.sleep(600)
-            #//raise e
 
 try:
     showColourTest()
     time.sleep(5)
     ring.clear()
 
-    threading.Thread(target=monitorTime).start()
+    monitor = threading.Thread(target=monitorTime)
+    monitor.start()
 
+    print("Starting Display System...")
     while True:
-        for printer in PRINTERS:
-            #Update the displayed time on the clock face
-            oldDisplayedTime = printer.displayedTime
-            printer.updateDisplayedTime()
-            ring.showTime(oldDisplayedTime,printer.remainingTime,printer.colour)
+        try:
+            for printer in PRINTERS:
+                #Update the displayed time on the clock faceremainingTime
+                oldDisplayedTime = printer.displayedTime
+                printer.updateDisplayedTime()
+                ring.showTime(oldDisplayedTime,printer.remainingTime,printer.colour)
+                time.sleep(4)
+                
+        except KeyboardInterrupt:
+            print("Stopping System...")
+            monitor.monitor = False
+            GPIO.cleanup()
+            break
 
 except Exception as e:
     ring.errorDisplay()
