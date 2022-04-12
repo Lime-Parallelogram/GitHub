@@ -3,7 +3,7 @@
 ### OctoPrint Connected Wall Clock
 # **OctoClock** 🕚 
 
-### Use a Raspberry Pi to create a custom, wall-mounted clock to keep tabs on your current 3D print jobs! 
+#### Use a Raspberry Pi to create a custom, wall-mounted clock to keep tabs on your current 3D print jobs! 
 ![](images/photo_2.jpg)
 ☝️ My implementation of the OctoClock. (Shown in idle mode) The Raspberry Pi and related control electronics are hidden behind the logo to give the device a professional quality finnish.
 
