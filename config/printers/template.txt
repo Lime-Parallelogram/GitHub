@@ -1,19 +1,19 @@
 # This file contains the OctoPrint configurations that must be set in order for the clock to display information about it.
 
 # Printer name (for identification purposes)
-NAME=Printer2
+NAME=Printer1
 
 # Identifier
-ID=2
+ID=1
 
 # The IP address that the octoprint server has
-IP=192.168.2.70
+IP=192.168.2.7
 
 # The port that octoprint is running on
-PORT=5002
+PORT=5000
 
 # The colour that you wish this printer to be displayed as
-COLOUR=(249,136,19)
+COLOUR=(253,25,25) 
 
 # The API Key of the instance
-API_KEY=169D76385137467581C6801F5CD4C011
+API_KEY=013F17AAF2014C449BCAD7E4C6DBD2CF

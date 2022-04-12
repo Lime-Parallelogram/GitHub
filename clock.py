@@ -6,7 +6,7 @@
 # Author: Will Hall
 # Copyright (c) 2021 Lime Parallelogram
 # -----
-# Last Modified: Sun Apr 03 2022
+# Last Modified: Fri Apr 08 2022
 # Modified By: Will Hall
 # -----
 # HISTORY:
@@ -45,10 +45,10 @@ LED_PIN = board.D18
 TAKEOVER_PIN = 4
 
 # Colour / Image
-DEFAULT_COLOUR = (0,0,2)
-DEFAULT_YELLOW = (2,2,1)
+DEFAULT_COLOUR = (0,0,2) 
+DEFAULT_YELLOW = (3,2,1)
 BLANK = (0, 0, 0)
-LED_DEFAULT = [DEFAULT_YELLOW, BLANK, DEFAULT_YELLOW, BLANK, DEFAULT_YELLOW, BLANK, DEFAULT_YELLOW, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_COLOUR, BLANK, DEFAULT_YELLOW, BLANK, DEFAULT_YELLOW, BLANK, DEFAULT_YELLOW, BLANK]
+LED_DEFAULT = [DEFAULT_YELLOW, DEFAULT_YELLOW, DEFAULT_YELLOW, DEFAULT_YELLOW, DEFAULT_YELLOW, DEFAULT_YELLOW, BLANK, DEFAULT_COLOUR, DEFAULT_COLOUR, DEFAULT_COLOUR, DEFAULT_COLOUR, DEFAULT_COLOUR, DEFAULT_COLOUR, DEFAULT_COLOUR, DEFAULT_COLOUR, DEFAULT_COLOUR, DEFAULT_COLOUR, DEFAULT_COLOUR, BLANK, DEFAULT_YELLOW, DEFAULT_YELLOW, DEFAULT_YELLOW, DEFAULT_YELLOW, DEFAULT_YELLOW]
 
 # ----------------------------- Program Variables ---------------------------- #
 # ---------------------------------- Parsers --------------------------------- #
@@ -154,6 +154,9 @@ class LEDRing:
             ledLocation = self.TWELVE_LED + led*self.DATA_DIRECTION
             if ledLocation < 0:
                 ledLocation += self.NUM_LEDS
+            
+            if ledLocation >= self.NUM_LEDS:
+                ledLocation -= self.NUM_LEDS
 
             map[led] = ledLocation
         return map
@@ -230,13 +233,13 @@ class LEDRing:
         ring.clear()
 
         for p in range(self.NUM_LEDS):
-            ring.setPixel(self.ledMap(p),colour)
+            ring.setPixel(self.ledMap[p],colour)
             time.sleep(0.1)
 
         time.sleep(5)
         
-        for p in range(self.NUM_LEDS,-1,-1):
-            ledNum = self.ledMap(p)
+        for p in range(self.NUM_LEDS-1,-1,-1):
+            ledNum = self.ledMap[p]
             ring.setPixel(ledNum,self.defaultDisplay[ledNum])
             time.sleep(0.1)
         
