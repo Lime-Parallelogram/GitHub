@@ -35,7 +35,7 @@ import configparser
 
 # ---------------------------- Program Parameters ---------------------------- #
 # CONFIG File Settings
-CONFIG_DIR = "./octoclock/"
+CONFIG_DIR = "config/"
 PRINTER_CONFIG = CONFIG_DIR + "printers.conf"
 LED_CONFIG = CONFIG_DIR + "led_ring.conf"
 
@@ -263,12 +263,12 @@ def showColourTest():
 
 # ------------------------------- Loads Config ------------------------------- #
 ledConfig = configparser.ConfigParser()
-ledConfig.read("config/led_ring.conf")
+ledConfig.read(LED_CONFIG)
 faceConfig = ledConfig["face"]
 pinConfig = ledConfig["pins"]
 
 printerConfig = configparser.ConfigParser()
-printerConfig.read("config/printers.conf")
+printerConfig.read(PRINTER_CONFIG)
 PRINTERS = []
 for printer in printerConfig.sections():
     try:
