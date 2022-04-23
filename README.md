@@ -34,10 +34,10 @@ Please find a comprehensive build guide on Instructables or watch my YouTube vid
 ***
 ### Software 💽
 #### Requirements:
->  The following python libraries must be downloaded in order for the software to function correctly. 
+The following python libraries must be downloaded in order for the software to function correctly. 
 - Neopixels - `pip install rpi_ws281x adafruit-circuitpython-neopixel`
 #### Configuration:
-> The following values must be updated in the clock.py file:
+The following values must be updated in the clock.py file:
 
     NUM_LEDS = 24
     TWELVE_LED = 12 #The ID of the LED that represents 12 o-clock
@@ -46,16 +46,18 @@ Please find a comprehensive build guide on Instructables or watch my YouTube vid
     LED_PIN = board.D18
     TAKEOVER_PIN = 4 # Only applicable if other boot animation is implemented 
 
-> A file containing information about your OctoPrint instance must be placed inside 'config/printers'. Use the template.txt as a reference for the required format.
+A file containing information about your OctoPrint instance must be placed inside 'config/printers'. Use the template.txt as a reference for the required format.
 ### **Note: Scripts using the neopixels library must be executed as root.**
 
 #### Installing:
-> The python script is best utilized when configured as a linux service. The required files for setting up a service are included with this repository. The script 'install.sh' is provided to automatically install and configure the service.
+The python script is best utilized when configured as a linux service. The required files for setting up a service are included with this repository. The script 'install.sh' is provided to automatically install and configure the service.  
+`sudo ./install.sh`
 
-> The service is installed as a root service as the neopixel library required root privileges.
+The service is installed as a root service as the neopixel library required root privileges.
 
 #### Uninstalling:
-> The script called 'uninstall.sh' will reverse all of the actions performed by 'install.sh'.
+The script called 'uninstall.sh' will reverse all of the actions performed by 'install.sh'.  
+`sudo ./uninstall.sh`
 
 ***
 ### Repository 🗀 
