@@ -1,0 +1,2 @@
+config/printers/*
+!config/printers/template.txt
