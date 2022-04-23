@@ -47,8 +47,15 @@ Please find a comprehensive build guide on Instructables or watch my YouTube vid
     TAKEOVER_PIN = 4 # Only applicable if other boot animation is implemented 
 
 > A file containing information about your OctoPrint instance must be placed inside 'config/printers'. Use the template.txt as a reference for the required format.
-
 ### **Note: Scripts using the neopixels library must be executed as root.**
+
+#### Installing:
+> The python script is best utilized when configured as a linux service. The required files for setting up a service are included with this repository. The script 'install.sh' is provided to automatically install and configure the service.
+
+> The service is installed as a root service as the neopixel library required root privileges.
+
+#### Uninstalling:
+> The script called 'uninstall.sh' will reverse all of the actions performed by 'install.sh'.
 
 ***
 ### Repository 🗀 

@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 #---------------------------------------------------------------------#
 # File: /home/will/OneDrive/PiSpace/ByProject/Octoprint Clock/clock.py
 # Project: OctoPrint Clock
@@ -6,7 +7,7 @@
 # Author: Will Hall
 # Copyright (c) 2021 Lime Parallelogram
 # -----
-# Last Modified: Fri Apr 08 2022
+# Last Modified: Fri Apr 22 2022
 # Modified By: Will Hall
 # -----
 # HISTORY:
@@ -30,7 +31,7 @@ import threading
 
 # ---------------------------- Program Parameters ---------------------------- #
 # CONFIG File Settings
-CONFIG_DIR = "./config/"
+CONFIG_DIR = "/etc/octoclock/"
 PRINTER_CONFIG = CONFIG_DIR + "printers/"
 
 # LED Settings
