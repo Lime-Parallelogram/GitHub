@@ -37,16 +37,9 @@ Please find a comprehensive build guide on Instructables or watch my YouTube vid
 The following python libraries must be downloaded in order for the software to function correctly. 
 - Neopixels - `pip install rpi_ws281x adafruit-circuitpython-neopixel`
 #### Configuration:
-The following values must be updated in the clock.py file:
-
-    NUM_LEDS = 24
-    TWELVE_LED = 12 #The ID of the LED that represents 12 o-clock
-    DATA_DIRECTION = 1 # -1 = Data travels in ACW direction
-
-    LED_PIN = board.D18
-    TAKEOVER_PIN = 4 # Only applicable if other boot animation is implemented 
-
-A file containing information about your OctoPrint instance must be placed inside 'config/printers'. Use the template.txt as a reference for the required format.
+Find all the information required in the two files inside the 'config' folder. The two files are used as follows:  
+`led_ring.conf` - Configure the settings for your clock face and its LEDs.  
+`printers.conf` - Add as many connections as required to configure 3D Printers.
 ### **Note: Scripts using the neopixels library must be executed as root.**
 
 #### Installing:

@@ -13,6 +13,8 @@
 # HISTORY:
 # Date      	By	Comments
 # ----------	---	---------------------------------------------------------
+# 2022-04-23	WH	Added simple checks before loading config file
+# 2022-04-23	WH	Moved to use standard configparser
 # 2022-04-23	WH	Code now ignores template file
 # 2021-12-01	WH	Created request for server data
 # 2021-12-01	WH	Created parser to load config from file
@@ -29,22 +31,16 @@ from string import Template
 import RPi.GPIO as GPIO
 import time
 import threading
+import configparser
 
 # ---------------------------- Program Parameters ---------------------------- #
 # CONFIG File Settings
-CONFIG_DIR = "/etc/octoclock/"
-PRINTER_CONFIG = CONFIG_DIR + "printers/"
+CONFIG_DIR = "./octoclock/"
+PRINTER_CONFIG = CONFIG_DIR + "printers.conf"
+LED_CONFIG = CONFIG_DIR + "led_ring.conf"
 
 # LED Settings
-NUM_LEDS = 24
-MINS_PER_LED = (12*60)/NUM_LEDS
-TWELVE_LED = 12 #The ID of the LED that represents 12 o-clock
 BRIGHTNESS_REDUCTION_FACTOR = 0.3
-DATA_DIRECTION = 1 # -1 = Data travels in ACW direction
-
-# Pin settings
-LED_PIN = board.D18
-TAKEOVER_PIN = 4
 
 # Colour / Image
 DEFAULT_COLOUR = (0,0,2) 
@@ -53,40 +49,34 @@ BLANK = (0, 0, 0)
 LED_DEFAULT = [DEFAULT_YELLOW, DEFAULT_YELLOW, DEFAULT_YELLOW, DEFAULT_YELLOW, DEFAULT_YELLOW, DEFAULT_YELLOW, BLANK, DEFAULT_COLOUR, DEFAULT_COLOUR, DEFAULT_COLOUR, DEFAULT_COLOUR, DEFAULT_COLOUR, DEFAULT_COLOUR, DEFAULT_COLOUR, DEFAULT_COLOUR, DEFAULT_COLOUR, DEFAULT_COLOUR, DEFAULT_COLOUR, BLANK, DEFAULT_YELLOW, DEFAULT_YELLOW, DEFAULT_YELLOW, DEFAULT_YELLOW, DEFAULT_YELLOW]
 
 # ----------------------------- Program Variables ---------------------------- #
-# ---------------------------------- Parsers --------------------------------- #
-class Parsers:
-    # Convert the printer config file to usable dictionary
-    def parsePrinterConfig(file):
-        # Read from file
-        with open(file,'r') as f:
-            lines = f.readlines()
-
-        printer = {}
-        for line in lines:
-            if not line[0] == "#" and len(line) > 3: #Ignore commented lines and empty lines
-                if line.count("=") == 1: #Check there is exactly one equals sign
-                    line = line.replace(" ","") #Remove spaces
-                    line = line.strip() #Remove endline and erroneous characters
-                    keyValue = line.split("=")
-                    printer[keyValue[0]] = keyValue[1]
-        
-        return printer
 
 # --------------- Class that governs interactions with the API --------------- #
 class OctoAPI:
     def __init__(self,printer):
-        # Set instance attributes from printer dictionary
-        self.API_KEY = printer["API_KEY"]
-        self.IP = printer["IP"]
-        self.PORT = printer["PORT"]
-        self.address = Template(f"http://{self.IP}:{self.PORT}/api/$request?apikey={self.API_KEY}")
-        self.ID = int(printer["ID"])
-        self.colour = printer["COLOUR"]
-        # Convert string colour (###,###,###) to tuple
-        self.colour = self.colour.replace("(","")
-        self.colour = self.colour.replace(")","")
-        self.colour = tuple(map(int,self.colour.split(",")))
-        self.colour = [c * BRIGHTNESS_REDUCTION_FACTOR for c in self.colour]
+        try:
+            # Set instance attributes from printer dictionary
+            self.API_KEY = printer["API_KEY"]
+            self.IP = printer["IP"]
+            self.PORT = printer["PORT"]
+            self.address = Template(f"http://{self.IP}:{self.PORT}/api/$request?apikey={self.API_KEY}")
+            self.ID = int(printer["ID"])
+            self.colour = printer["COLOUR"]
+            # Convert string colour (###,###,###) to tuple
+            self.colour = self.colour.replace("(","")
+            self.colour = self.colour.replace(")","")
+            self.colour = tuple(map(int,self.colour.split(",")))
+            self.colour = [c * BRIGHTNESS_REDUCTION_FACTOR for c in self.colour]
+        except:
+            raise self.InvalidConfigError
+
+        # ----------------- #
+        # Simple config checks
+        if len(self.colour) != 3: # Check colour is in a valid format
+            raise self.InvalidConfigError
+        if not self.PORT.isdigit(): # Check that specified port is a digit
+            raise self.InvalidConfigError
+        if len(self.API_KEY) != 32: # Check API key is correct length
+            raise self.InvalidConfigError
 
         self.remainingTime = 6
         self.displayedTime = -1
@@ -137,23 +127,28 @@ class OctoAPI:
     def updateRemainingTime(self):
         self.remainingTime = self.getRemainingTime()
 
+    # ----------------- #
+    # Invalid config error - raised when the config is invalid or incomplete
+    class InvalidConfigError(Exception):
+        pass 
+
 # -------------- Class that governes interactions with the LEDS -------------- #
 class LEDRing:
     def __init__(self,pin,numLEDs,defaultImage,dataDirection,twelveLED):
-        self.NUM_LEDS = numLEDs
-        self.PIXELS = neopixel.NeoPixel(pin,numLEDs)
+        self.NUM_LEDS = int(numLEDs)
+        self.PIXELS = neopixel.NeoPixel(board.pin.Pin(int(pin)),int(numLEDs))
         self.defaultDisplay = defaultImage
-        self.DATA_DIRECTION = dataDirection
-        self.TWELVE_LED = twelveLED
 
-        self.ledMap = self._generateMap()
+        self.ledMap = self._generateMap(int(twelveLED),dataDirection)
     
     # ----------------- #
     # Generate map dictionary of clock value to actual LED Number
-    def _generateMap(self):
+    def _generateMap(self,twelveLED, dataDirection):
+        directionMultiplier = -1 if dataDirection == "ACW" else 1
+
         map = {-1:-1}
         for led in range(0,self.NUM_LEDS):
-            ledLocation = self.TWELVE_LED + led*self.DATA_DIRECTION
+            ledLocation = twelveLED + led*directionMultiplier
             if ledLocation < 0:
                 ledLocation += self.NUM_LEDS
             
@@ -167,8 +162,8 @@ class LEDRing:
     # Convert a time in mins to a number of clock segments
     def _timeToSegments(self,mins):
         segments = round(mins / 30)
-        if segments >= NUM_LEDS: # If the segment requested is more than available, show max
-            segments = NUM_LEDS -1
+        if segments >= self.NUM_LEDS: # If the segment requested is more than available, show max
+            segments = self.NUM_LEDS -1
             
         return segments
 
@@ -191,8 +186,11 @@ class LEDRing:
     # ----------------- #
     # Shade the two LEDs next to a number on the clock
     def shadeNumber(self,number,colour):
-        self.PIXELS[self.ledMap[number]] = colour
-        self.PIXELS[self.ledMap[number-1]] = colour
+        try:
+            self.PIXELS[self.ledMap[number*2]] = colour
+            self.PIXELS[self.ledMap[number*2+1]] = colour
+        except KeyError:
+            print(f"The specified number {number} does not exist on a clock face!")
     
     # ----------------- #
     # Set the colour of an arbitrary pixel
@@ -227,7 +225,7 @@ class LEDRing:
         else: # If the printer has finished
             if displayedTime != -1: # Display animation if printer has just finished
                 self.printerFinnish(colour)
-                self.PIXELS[oldLEDNum] = self.defaultDisplay[oldLEDNum]        
+                self.PIXELS[oldLEDNum] = self.defaultDisplay[oldLEDNum]
 
     # ----------------- #
     # Display a finnishing animation 
@@ -264,16 +262,33 @@ def showColourTest():
     
 
 # ------------------------------- Loads Config ------------------------------- #
-printerFiles = [PRINTER_CONFIG+file for file in os.listdir(PRINTER_CONFIG) if not os.path.isdir(PRINTER_CONFIG+file) and file.endswith(".txt") and file != "template.txt"]
-PRINTERS = [OctoAPI(printer) for printer in [Parsers.parsePrinterConfig(printer) for printer in printerFiles]]
+ledConfig = configparser.ConfigParser()
+ledConfig.read("config/led_ring.conf")
+faceConfig = ledConfig["face"]
+pinConfig = ledConfig["pins"]
+
+printerConfig = configparser.ConfigParser()
+printerConfig.read("config/printers.conf")
+PRINTERS = []
+for printer in printerConfig.sections():
+    try:
+        PRINTERS.append(OctoAPI(printerConfig[printer]))
+    except OctoAPI.InvalidConfigError:
+        print(f"The config in {printer} is invalid. It will not be loaded")
 
 # ------------------------ Setup Instance of LED ring ------------------------ #
-ring = LEDRing(LED_PIN,NUM_LEDS,LED_DEFAULT,DATA_DIRECTION,TWELVE_LED)
+ring = LEDRing(pin=pinConfig["LED_PIN"],
+               numLEDs=faceConfig["NUM_LEDS"],
+               defaultImage=LED_DEFAULT,
+               dataDirection=faceConfig["DATA_DIRECTION"],
+               twelveLED=faceConfig["TWELVE_LED"])
 
 # ----------------------- Assumes control from Arduino ----------------------- #
-GPIO.setup(TAKEOVER_PIN,GPIO.OUT)
-GPIO.output(TAKEOVER_PIN,True)
-time.sleep(3)
+TAKEOVER_PIN = int(pinConfig["TAKEOVER_PIN"])
+if TAKEOVER_PIN != -1: # If the takeover pin is -1, indicates arduino is not installed
+    GPIO.setup(TAKEOVER_PIN,GPIO.OUT)
+    GPIO.output(TAKEOVER_PIN,True)
+    time.sleep(3)
 ring.clear()
 
 
