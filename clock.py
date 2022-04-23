@@ -7,12 +7,13 @@
 # Author: Will Hall
 # Copyright (c) 2021 Lime Parallelogram
 # -----
-# Last Modified: Fri Apr 22 2022
+# Last Modified: Sat Apr 23 2022
 # Modified By: Will Hall
 # -----
 # HISTORY:
 # Date      	By	Comments
 # ----------	---	---------------------------------------------------------
+# 2022-04-23	WH	Code now ignores template file
 # 2021-12-01	WH	Created request for server data
 # 2021-12-01	WH	Created parser to load config from file
 # 2021-12-01	WH	Raspberry Pi Password: OctoClock
@@ -263,7 +264,7 @@ def showColourTest():
     
 
 # ------------------------------- Loads Config ------------------------------- #
-printerFiles = [PRINTER_CONFIG+file for file in os.listdir(PRINTER_CONFIG) if not os.path.isdir(PRINTER_CONFIG+file) and file.endswith(".txt")]
+printerFiles = [PRINTER_CONFIG+file for file in os.listdir(PRINTER_CONFIG) if not os.path.isdir(PRINTER_CONFIG+file) and file.endswith(".txt") and file != "template.txt"]
 PRINTERS = [OctoAPI(printer) for printer in [Parsers.parsePrinterConfig(printer) for printer in printerFiles]]
 
 # ------------------------ Setup Instance of LED ring ------------------------ #
